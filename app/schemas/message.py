@@ -1,5 +1,7 @@
 from pydantic import BaseModel
 from datetime import datetime
+from pydantic import BaseModel
+
 
 class MessageIn(BaseModel):
     telefone: str
@@ -16,3 +18,6 @@ class MessageOut(BaseModel):
     "from_attributes": True
 }
 
+class IncomingMessage(BaseModel):
+    telefone: str
+    mensagem: str

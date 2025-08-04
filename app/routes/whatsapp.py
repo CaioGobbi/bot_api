@@ -12,7 +12,13 @@ from app.core.deps import usuario_autenticado
 from fastapi import APIRouter, Depends
 from app.routes.auth import get_current_user
 
-router = APIRouter()
+from app.models.rule import Rule
+from app.schemas.message import IncomingMessage
+from sqlalchemy import select
+
+from sqlalchemy import func
+
+router = APIRouter(prefix="/api/whatsapp")
 
 async def get_db():
     async with SessionLocal() as session:
@@ -35,3 +41,32 @@ async def listar_mensagens(
 @router.get("/mensagens")
 async def listar_mensagens(user_email: str = Depends(get_current_user)):
     return {"mensagens": f"Estas são as mensagens do usuário: {user_email}"}
+
+
+@router.post("/mensagem")
+async def receber_mensagem(dados: IncomingMessage, db: AsyncSession = Depends(get_db)):
+    # 1. Salva a mensagem recebida
+    nova_msg = Message(telefone=dados.telefone, mensagem=dados.mensagem)
+    db.add(nova_msg)
+    await db.commit()
+
+    # 2. Busca TODAS as regras cadastradas
+    result = await db.execute(select(Rule))
+    regras = result.scalars().all()
+
+    # 3. Verifica se alguma palavra-chave está contida na mensagem recebida
+    resposta = "Mensagem recebida, em breve responderemos."
+    for regra in regras:
+        if regra.palavra_chave.lower() in dados.mensagem.lower():
+            resposta = regra.resposta
+            break
+
+    # 4. Atualiza a resposta da mensagem
+    nova_msg.resposta = resposta
+    await db.commit()
+
+    return {
+        "telefone": dados.telefone,
+        "mensagem_recebida": dados.mensagem,
+        "resposta": resposta
+    }
