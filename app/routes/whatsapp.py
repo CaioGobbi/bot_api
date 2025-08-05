@@ -18,6 +18,12 @@ from sqlalchemy import select
 
 from sqlalchemy import func
 
+from app.schemas.rule import RuleCreate
+
+from fastapi import HTTPException
+
+
+
 router = APIRouter(prefix="/api/whatsapp")
 
 async def get_db():
@@ -70,3 +76,40 @@ async def receber_mensagem(dados: IncomingMessage, db: AsyncSession = Depends(ge
         "mensagem_recebida": dados.mensagem,
         "resposta": resposta
     }
+
+@router.get("/regras")
+async def listar_regras(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Rule))
+    regras = result.scalars().all()
+    return regras
+
+@router.post("/regras")
+async def criar_regra(rule: RuleCreate, db: AsyncSession = Depends(get_db)):
+    nova_regra = Rule(**rule.dict())
+    db.add(nova_regra)
+    await db.commit()
+    await db.refresh(nova_regra)
+    return nova_regra
+
+@router.put("/regras/{regra_id}")
+async def atualizar_regra(regra_id: int, dados: RuleCreate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Rule).where(Rule.id == regra_id))
+    regra = result.scalars().first()
+    if not regra:
+        raise HTTPException(status_code=404, detail="Regra não encontrada")
+    
+    regra.palavra_chave = dados.palavra_chave
+    regra.resposta = dados.resposta
+    await db.commit()
+    return regra
+
+@router.delete("/regras/{regra_id}")
+async def deletar_regra(regra_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Rule).where(Rule.id == regra_id))
+    regra = result.scalars().first()
+    if not regra:
+        raise HTTPException(status_code=404, detail="Regra não encontrada")
+    
+    await db.delete(regra)
+    await db.commit()
+    return {"msg": "Regra deletada com sucesso"}
